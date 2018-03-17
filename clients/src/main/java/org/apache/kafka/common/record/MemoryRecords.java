@@ -61,6 +61,15 @@ public class MemoryRecords implements Records {
     private boolean writable;
 
     // Construct a writable memory records
+
+    /**
+     * 构造方法私有(通过 emptyRecords方法获取对象)
+     *
+     * @param buffer
+     * @param type
+     * @param writable
+     * @param writeLimit
+     */
     private MemoryRecords(ByteBuffer buffer, CompressionType type, boolean writable, int writeLimit) {
         this.writable = writable;
         this.writeLimit = writeLimit;
@@ -89,8 +98,11 @@ public class MemoryRecords implements Records {
 
     /**
      * Append the given record and offset to the buffer
+     * 先判断MemoryRecords是否为可写模式
+     * 然后调用Compressor.put方法,将消息数据写入ByteBuffer中
      */
     public void append(long offset, Record record) {
+
         if (!writable)
             throw new IllegalStateException("Memory records is not writable");
 
@@ -130,6 +142,10 @@ public class MemoryRecords implements Records {
      * capacity will be the message size which is larger than the write limit, i.e. the batch size. In this case
      * the checking should be based on the capacity of the initialized buffer rather than the write limit in order
      * to accept this single record.
+     * <p>
+     * 根据Compressor估算的已写字节数,估计MemoryRecords剩余空间是否足够写入指定的数据
+     * 注意,这里仅仅是估算,不一定十分准确
+     * 通过hasRoomFor方法判断之后写入数据,也可能导致底层ByteBuffer出现扩容的情况
      */
     public boolean hasRoomFor(byte[] key, byte[] value) {
         if (!this.writable)
@@ -146,6 +162,10 @@ public class MemoryRecords implements Records {
 
     /**
      * Close this batch for no more appends
+     * 出现ByteBuffer扩容的情况时,MemoryRecords.buffer与
+     * ByteBufferOutputStream.buffer字段所指向的不再是同一个ByteBuffer对象
+     * 在close方法中,会将MemoryRecords.buffer指向扩容后的ByteBuffer对象
+     * 同时,将writable置为false(即只读模式)
      */
     public void close() {
         if (writable) {
@@ -163,6 +183,8 @@ public class MemoryRecords implements Records {
 
     /**
      * The size of this record set
+     * 对于可写的MemoryRecords,返回的是ByteBufferOutputStream.buffer字段的大小
+     * 对于只读的MemoryRecords,返回的是MemoryRecords.buffer的大小
      */
     public int sizeInBytes() {
         if (writable) {
@@ -200,6 +222,12 @@ public class MemoryRecords implements Records {
         return buffer.duplicate();
     }
 
+    /**
+     * 迭代器
+     * 用在Consumer端读取其中的消息(服务端 Log SubSystem)
+     *
+     * @return
+     */
     @Override
     public Iterator<LogEntry> iterator() {
         if (writable) {

@@ -3,9 +3,9 @@
  * file distributed with this work for additional information regarding copyright ownership. The ASF licenses this file
  * to You under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the
  * License. You may obtain a copy of the License at
- *
+ * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
  * Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
  * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
  * specific language governing permissions and limitations under the License.
@@ -18,25 +18,11 @@ import org.apache.kafka.clients.NetworkClient;
 import org.apache.kafka.clients.producer.internals.ProducerInterceptors;
 import org.apache.kafka.clients.producer.internals.RecordAccumulator;
 import org.apache.kafka.clients.producer.internals.Sender;
-import org.apache.kafka.common.Cluster;
-import org.apache.kafka.common.KafkaException;
-import org.apache.kafka.common.Metric;
-import org.apache.kafka.common.MetricName;
-import org.apache.kafka.common.PartitionInfo;
-import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.*;
 import org.apache.kafka.common.config.ConfigException;
-import org.apache.kafka.common.errors.ApiException;
-import org.apache.kafka.common.errors.InterruptException;
-import org.apache.kafka.common.errors.RecordTooLargeException;
-import org.apache.kafka.common.errors.SerializationException;
-import org.apache.kafka.common.errors.TimeoutException;
-import org.apache.kafka.common.errors.TopicAuthorizationException;
+import org.apache.kafka.common.errors.*;
 import org.apache.kafka.common.internals.ClusterResourceListeners;
-import org.apache.kafka.common.metrics.JmxReporter;
-import org.apache.kafka.common.metrics.MetricConfig;
-import org.apache.kafka.common.metrics.Metrics;
-import org.apache.kafka.common.metrics.MetricsReporter;
-import org.apache.kafka.common.metrics.Sensor;
+import org.apache.kafka.common.metrics.*;
 import org.apache.kafka.common.network.ChannelBuilder;
 import org.apache.kafka.common.network.Selector;
 import org.apache.kafka.common.record.CompressionType;
@@ -51,11 +37,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.InetSocketAddress;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -176,7 +158,7 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
      */
     public KafkaProducer(Map<String, Object> configs, Serializer<K> keySerializer, Serializer<V> valueSerializer) {
         this(new ProducerConfig(ProducerConfig.addSerializerToConfig(configs, keySerializer, valueSerializer)),
-             keySerializer, valueSerializer);
+                keySerializer, valueSerializer);
     }
 
     /**
@@ -199,7 +181,7 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
      */
     public KafkaProducer(Properties properties, Serializer<K> keySerializer, Serializer<V> valueSerializer) {
         this(new ProducerConfig(ProducerConfig.addSerializerToConfig(properties, keySerializer, valueSerializer)),
-             keySerializer, valueSerializer);
+                keySerializer, valueSerializer);
     }
 
     @SuppressWarnings({"unchecked", "deprecation"})
@@ -472,6 +454,8 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
             // producer callback will make sure to call both 'callback' and interceptor callback
             Callback interceptCallback = this.interceptors == null ? callback : new InterceptorCallback<>(callback, this.interceptors, tp);
             RecordAccumulator.RecordAppendResult result = accumulator.append(tp, timestamp, serializedKey, serializedValue, interceptCallback, remainingWaitMs);
+            //判断此次向RecordAccumulator中追加消息后是否满足唤醒Sender线程条件:
+            //消息所在队列的最后一个RecordBatch满了或此队列中不只一个RecordBatch
             if (result.batchIsFull || result.newBatchCreated) {
                 log.trace("Waking up the sender since topic {} partition {} is either full or getting a new batch", record.topic(), partition);
                 this.sender.wakeup();
@@ -570,14 +554,14 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
     private void ensureValidRecordSize(int size) {
         if (size > this.maxRequestSize)
             throw new RecordTooLargeException("The message is " + size +
-                                              " bytes when serialized which is larger than the maximum request size you have configured with the " +
-                                              ProducerConfig.MAX_REQUEST_SIZE_CONFIG +
-                                              " configuration.");
+                    " bytes when serialized which is larger than the maximum request size you have configured with the " +
+                    ProducerConfig.MAX_REQUEST_SIZE_CONFIG +
+                    " configuration.");
         if (size > this.totalMemorySize)
             throw new RecordTooLargeException("The message is " + size +
-                                              " bytes when serialized which is larger than the total memory buffer you have configured with the " +
-                                              ProducerConfig.BUFFER_MEMORY_CONFIG +
-                                              " configuration.");
+                    " bytes when serialized which is larger than the total memory buffer you have configured with the " +
+                    ProducerConfig.BUFFER_MEMORY_CONFIG +
+                    " configuration.");
     }
 
     /**
@@ -689,7 +673,7 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
         if (timeout > 0) {
             if (invokedFromCallback) {
                 log.warn("Overriding close timeout {} ms to 0 ms in order to prevent useless blocking due to self-join. " +
-                    "This means you have incorrectly invoked close with a non-zero timeout from the producer call-back.", timeout);
+                        "This means you have incorrectly invoked close with a non-zero timeout from the producer call-back.", timeout);
             } else {
                 // Try to close gracefully.
                 if (this.sender != null)
@@ -707,7 +691,7 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
 
         if (this.sender != null && this.ioThread != null && this.ioThread.isAlive()) {
             log.info("Proceeding to force close the producer since pending requests could not be completed " +
-                "within timeout {} ms.", timeout);
+                    "within timeout {} ms.", timeout);
             this.sender.forceClose();
             // Only join the sender thread when not calling from callback.
             if (!invokedFromCallback) {
@@ -731,7 +715,7 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
 
     private ClusterResourceListeners configureClusterResourceListeners(Serializer<K> keySerializer, Serializer<V> valueSerializer, List<?>... candidateLists) {
         ClusterResourceListeners clusterResourceListeners = new ClusterResourceListeners();
-        for (List<?> candidateList: candidateLists)
+        for (List<?> candidateList : candidateLists)
             clusterResourceListeners.maybeAddAll(candidateList);
 
         clusterResourceListeners.maybeAdd(keySerializer);
@@ -755,6 +739,7 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
     private static class ClusterAndWaitTime {
         final Cluster cluster;
         final long waitedOnMetadataMs;
+
         ClusterAndWaitTime(Cluster cluster, long waitedOnMetadataMs) {
             this.cluster = cluster;
             this.waitedOnMetadataMs = waitedOnMetadataMs;
@@ -816,7 +801,7 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
             if (this.interceptors != null) {
                 if (metadata == null) {
                     this.interceptors.onAcknowledgement(new RecordMetadata(tp, -1, -1, Record.NO_TIMESTAMP, -1, -1, -1),
-                                                        exception);
+                            exception);
                 } else {
                     this.interceptors.onAcknowledgement(metadata, exception);
                 }
